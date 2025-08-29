@@ -2,41 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* DNS Pulse Viewer Design System - Networking/Cybersecurity Theme */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Core networking theme colors */
+    --background: 220 27% 8%;
+    --foreground: 210 40% 98%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 220 25% 10%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 220 25% 12%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary: Cyber Blue */
+    --primary: 214 100% 50%;
+    --primary-foreground: 220 27% 8%;
+    --primary-glow: 214 100% 65%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary: Network Green */
+    --secondary: 152 100% 50%;
+    --secondary-foreground: 220 27% 8%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Accent: Purple for highlights */
+    --accent: 264 89% 58%;
+    --accent-foreground: 210 40% 98%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --muted: 220 20% 18%;
+    --muted-foreground: 215 25% 65%;
 
-    --destructive: 0 84.2% 60.2%;
+    /* Destructive: Alert Red */
+    --destructive: 0 91% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Warning: Amber */
+    --warning: 43 100% 50%;
+    --warning-foreground: 220 27% 8%;
 
-    --radius: 0.5rem;
+    /* Success: Emerald Green */
+    --success: 152 76% 36%;
+    --success-foreground: 210 40% 98%;
+
+    --border: 220 20% 20%;
+    --input: 220 20% 15%;
+    --ring: 214 100% 50%;
+
+    --radius: 0.75rem;
+
+    /* Custom DNS theme tokens */
+    --network-pulse: 214 100% 50%;
+    --packet-flow: 152 100% 50%;
+    --data-stream: 264 89% 58%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(214 100% 50%), hsl(264 89% 58%));
+    --gradient-network: linear-gradient(90deg, hsl(214 100% 50%), hsl(152 100% 50%));
+    --gradient-hero: linear-gradient(135deg, hsl(220 27% 8%), hsl(220 25% 12%));
+    --gradient-card: linear-gradient(145deg, hsl(220 25% 10%), hsl(220 20% 12%));
+    
+    /* Shadows and effects */
+    --shadow-glow: 0 0 30px hsl(214 100% 50% / 0.3);
+    --shadow-network: 0 4px 20px hsl(214 100% 50% / 0.2);
+    --shadow-card: 0 8px 32px hsl(220 27% 8% / 0.8);
+    
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --pulse-duration: 2s;
+
+    --radius: 0.75rem;
 
     --sidebar-background: 0 0% 98%;
 
@@ -101,5 +135,69 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    background: var(--gradient-hero);
+  }
+}
+
+@layer components {
+  /* Network pulse animation */
+  .network-pulse {
+    animation: network-pulse var(--pulse-duration) cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  /* Packet flow animation */
+  .packet-flow {
+    animation: packet-flow 3s ease-in-out infinite;
+  }
+  
+  /* Data visualization glow */
+  .data-glow {
+    box-shadow: var(--shadow-glow);
+    transition: var(--transition-smooth);
+  }
+  
+  /* Hero gradient background */
+  .hero-bg {
+    background: var(--gradient-hero);
+  }
+  
+  /* Network card styling */
+  .network-card {
+    background: var(--gradient-card);
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(8px);
+    border: 1px solid hsl(var(--border));
+  }
+  
+  /* Packet table styling */
+  .packet-table {
+    background: hsl(var(--card) / 0.8);
+    backdrop-filter: blur(12px);
+  }
+}
+
+@keyframes network-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 hsl(var(--network-pulse) / 0.7);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 0 10px hsl(var(--network-pulse) / 0);
+  }
+}
+
+@keyframes packet-flow {
+  0% {
+    transform: translateX(-10px);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateX(0px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(10px);
+    opacity: 0.7;
   }
 }

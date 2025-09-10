@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Play, Pause, Square, Search, Filter, Download, Eye, Clock, Globe } from 'lucide-react';
+import { Play, Pause, Square, Search, Filter, Download, Eye, Clock, Globe, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,19 +7,20 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PacketDetailsModal } from '@/components/PacketDetailsModal';
+import { FileUploadNote } from '@/components/FileUploadNote';
 import { useToast } from '@/hooks/use-toast';
 
-// Mock packet data for demonstration
+// Mock packet data matching dns_output.txt format
 const generateMockPacket = (id: number) => ({
-  id,
-  timestamp: new Date().toISOString(),
+  packetNumber: id,
   sourceIp: `192.168.1.${Math.floor(Math.random() * 254) + 1}`,
   destinationIp: `8.8.${Math.floor(Math.random() * 2) + 8}.8`,
-  queryName: ['google.com', 'cloudflare.com', 'github.com', 'stackoverflow.com', 'api.example.com'][Math.floor(Math.random() * 5)],
-  queryType: ['A', 'AAAA', 'MX', 'CNAME', 'NS'][Math.floor(Math.random() * 5)],
-  response: Math.random() > 0.1 ? 'Success' : 'NXDOMAIN',
-  responseTime: Math.floor(Math.random() * 100) + 10,
-  size: Math.floor(Math.random() * 512) + 64
+  sourcePort: Math.floor(Math.random() * 65000) + 1024,
+  destinationPort: 53, // DNS port
+  domainQueried: ['google.com', 'cloudflare.com', 'github.com', 'stackoverflow.com', 'api.example.com', 'facebook.com', 'youtube.com'][Math.floor(Math.random() * 7)],
+  queryResponseType: ['Query', 'Response'][Math.floor(Math.random() * 2)],
+  transactionId: Math.floor(Math.random() * 65535).toString(16).toUpperCase().padStart(4, '0'),
+  timestamp: new Date().toISOString()
 });
 
 const PacketCapture = () => {
@@ -28,6 +29,8 @@ const PacketCapture = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [selectedPacket, setSelectedPacket] = useState<any>(null);
+  const [sortField, setSortField] = useState<string>('packetNumber');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const { toast } = useToast();
 
   // Simulate real-time packet capture
@@ -36,8 +39,8 @@ const PacketCapture = () => {
 
     const interval = setInterval(() => {
       const newPacket = generateMockPacket(packets.length + 1);
-      setPackets(prev => [newPacket, ...prev.slice(0, 99)]); // Keep last 100 packets
-    }, Math.random() * 2000 + 500); // Random interval between 0.5-2.5 seconds
+      setPackets(prev => [newPacket, ...prev.slice(0, 199)]); // Keep last 200 packets
+    }, Math.random() * 3000 + 1000); // Random interval between 1-4 seconds
 
     return () => clearInterval(interval);
   }, [isCapturing, packets.length]);
@@ -45,48 +48,87 @@ const PacketCapture = () => {
   const handleStartCapture = () => {
     setIsCapturing(true);
     toast({
-      title: "Capture Started",
-      description: "DNS packet capture is now active",
+      title: "Analysis Started",
+      description: "DNS packet analysis is now active",
     });
   };
 
   const handleStopCapture = () => {
     setIsCapturing(false);
     toast({
-      title: "Capture Stopped", 
-      description: "DNS packet capture has been stopped",
+      title: "Analysis Stopped", 
+      description: "DNS packet analysis has been stopped",
     });
   };
 
   const handleClearPackets = () => {
     setPackets([]);
     toast({
-      title: "Packets Cleared",
-      description: "All captured packets have been cleared",
+      title: "Results Cleared",
+      description: "All analyzed packets have been cleared",
     });
   };
 
   const handleExport = () => {
+    const csvContent = [
+      ['Packet Number', 'Source IP', 'Destination IP', 'Source Port', 'Destination Port', 'Domain Queried', 'Query/Response Type', 'Transaction ID'],
+      ...packets.map(p => [p.packetNumber, p.sourceIp, p.destinationIp, p.sourcePort, p.destinationPort, p.domainQueried, p.queryResponseType, p.transactionId])
+    ].map(row => row.join(',')).join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'dns_analysis_results.csv';
+    a.click();
+    
     toast({
-      title: "Export Started",
-      description: "Packet data is being exported to CSV",
+      title: "Export Complete",
+      description: "DNS analysis results exported to CSV",
     });
   };
 
-  // Filter packets based on search and filter type
-  const filteredPackets = packets.filter(packet => {
-    const matchesSearch = !searchQuery || 
-      packet.sourceIp.includes(searchQuery) ||
-      packet.destinationIp.includes(searchQuery) ||
-      packet.queryName.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesFilter = filterType === 'all' || 
-      (filterType === 'success' && packet.response === 'Success') ||
-      (filterType === 'error' && packet.response !== 'Success') ||
-      packet.queryType === filterType;
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
-    return matchesSearch && matchesFilter;
-  });
+  // Filter and sort packets
+  const filteredAndSortedPackets = packets
+    .filter(packet => {
+      const matchesSearch = !searchQuery || 
+        packet.sourceIp.includes(searchQuery) ||
+        packet.destinationIp.includes(searchQuery) ||
+        packet.domainQueried.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesFilter = filterType === 'all' || 
+        (filterType === 'query' && packet.queryResponseType === 'Query') ||
+        (filterType === 'response' && packet.queryResponseType === 'Response');
+
+      return matchesSearch && matchesFilter;
+    })
+    .sort((a, b) => {
+      const aValue = a[sortField];
+      const bValue = b[sortField];
+      const modifier = sortDirection === 'asc' ? 1 : -1;
+      
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return (aValue - bValue) * modifier;
+      }
+      return String(aValue).localeCompare(String(bValue)) * modifier;
+    });
+
+  // Calculate statistics  
+  const uniqueDomains = [...new Set(packets.map(p => p.domainQueried))];
+  const domainCounts = packets.reduce((acc, p) => {
+    acc[p.domainQueried] = (acc[p.domainQueried] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  const mostQueriedDomain = Object.entries(domainCounts).sort(([,a], [,b]) => (b as number) - (a as number))[0];
 
   return (
     <div className="min-h-screen p-6">
@@ -94,20 +136,20 @@ const PacketCapture = () => {
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-primary">Packet Capture</h1>
-            <p className="text-muted-foreground">Monitor DNS packets in real-time</p>
+            <h1 className="text-3xl font-bold text-primary">DNS Analysis Results</h1>
+            <p className="text-muted-foreground">Real-time DNS packet analysis from dns_output.txt</p>
           </div>
           
           <div className="flex flex-wrap gap-2">
             {!isCapturing ? (
               <Button onClick={handleStartCapture} className="bg-secondary hover:bg-secondary/90">
                 <Play className="h-4 w-4 mr-2" />
-                Start Capture
+                Start Analysis
               </Button>
             ) : (
               <Button onClick={handleStopCapture} variant="destructive">
                 <Pause className="h-4 w-4 mr-2" />
-                Stop Capture
+                Stop Analysis
               </Button>
             )}
             
@@ -123,11 +165,14 @@ const PacketCapture = () => {
           </div>
         </div>
 
-        {/* Stats Cards */}
+        {/* File Integration Note */}
+        <FileUploadNote />
+
+        {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="network-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Packets</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Packets Analyzed</CardTitle>
               <Globe className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -137,7 +182,7 @@ const PacketCapture = () => {
 
           <Card className="network-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Capture Status</CardTitle>
+              <CardTitle className="text-sm font-medium">Analysis Status</CardTitle>
               <Eye className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -149,28 +194,27 @@ const PacketCapture = () => {
 
           <Card className="network-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+              <CardTitle className="text-sm font-medium">Unique Domains</CardTitle>
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-success">
-                {packets.length > 0 
-                  ? Math.round((packets.filter(p => p.response === 'Success').length / packets.length) * 100)
-                  : 0}%
+              <div className="text-2xl font-bold text-accent">
+                {uniqueDomains.length}
               </div>
             </CardContent>
           </Card>
 
           <Card className="network-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Response</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Most Queried</CardTitle>
+              <Globe className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {packets.length > 0 
-                  ? Math.round(packets.reduce((acc, p) => acc + p.responseTime, 0) / packets.length)
-                  : 0}ms
+              <div className="text-sm font-semibold truncate">
+                {mostQueriedDomain ? mostQueriedDomain[0] : 'N/A'}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {mostQueriedDomain ? `${mostQueriedDomain[1]} queries` : ''}
               </div>
             </CardContent>
           </Card>
@@ -199,12 +243,8 @@ const PacketCapture = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Packets</SelectItem>
-                  <SelectItem value="success">Success Only</SelectItem>
-                  <SelectItem value="error">Errors Only</SelectItem>
-                  <SelectItem value="A">A Records</SelectItem>
-                  <SelectItem value="AAAA">AAAA Records</SelectItem>
-                  <SelectItem value="MX">MX Records</SelectItem>
-                  <SelectItem value="CNAME">CNAME Records</SelectItem>
+                  <SelectItem value="query">Queries Only</SelectItem>
+                  <SelectItem value="response">Responses Only</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -216,7 +256,7 @@ const PacketCapture = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Globe className="h-5 w-5 text-primary" />
-              Captured Packets ({filteredPackets.length})
+              DNS Analysis Results ({filteredAndSortedPackets.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -224,41 +264,57 @@ const PacketCapture = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>Source IP</TableHead>
-                    <TableHead>Destination IP</TableHead>
-                    <TableHead>Query Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Response</TableHead>
-                    <TableHead>Time (ms)</TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('packetNumber')}>
+                      Packet # {sortField === 'packetNumber' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('sourceIp')}>
+                      Source IP {sortField === 'sourceIp' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('destinationIp')}>
+                      Destination IP {sortField === 'destinationIp' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('sourcePort')}>
+                      Source Port {sortField === 'sourcePort' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('destinationPort')}>
+                      Dest Port {sortField === 'destinationPort' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('domainQueried')}>
+                      Domain Queried {sortField === 'domainQueried' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('queryResponseType')}>
+                      Type {sortField === 'queryResponseType' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('transactionId')}>
+                      Transaction ID {sortField === 'transactionId' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredPackets.length === 0 ? (
+                  {filteredAndSortedPackets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                        {isCapturing ? "Waiting for packets..." : "No packets captured. Start capture to begin monitoring."}
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                        {isCapturing ? "Waiting for DNS packets..." : "No packets analyzed. Start analysis to begin monitoring dns_output.txt"}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredPackets.map((packet) => (
-                      <TableRow key={packet.id} className="hover:bg-muted/50 cursor-pointer packet-flow">
-                        <TableCell className="font-mono text-sm">
-                          {new Date(packet.timestamp).toLocaleTimeString()}
+                    filteredAndSortedPackets.map((packet) => (
+                      <TableRow key={packet.packetNumber} className="hover:bg-muted/50 cursor-pointer packet-flow">
+                        <TableCell className="font-mono text-sm font-semibold">
+                          {packet.packetNumber}
                         </TableCell>
                         <TableCell className="font-mono">{packet.sourceIp}</TableCell>
                         <TableCell className="font-mono">{packet.destinationIp}</TableCell>
-                        <TableCell className="font-semibold">{packet.queryName}</TableCell>
+                        <TableCell className="font-mono">{packet.sourcePort}</TableCell>
+                        <TableCell className="font-mono">{packet.destinationPort}</TableCell>
+                        <TableCell className="font-semibold">{packet.domainQueried}</TableCell>
                         <TableCell>
-                          <Badge variant="outline">{packet.queryType}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={packet.response === 'Success' ? 'default' : 'destructive'}>
-                            {packet.response}
+                          <Badge variant={packet.queryResponseType === 'Query' ? 'outline' : 'default'}>
+                            {packet.queryResponseType}
                           </Badge>
                         </TableCell>
-                        <TableCell>{packet.responseTime}ms</TableCell>
+                        <TableCell className="font-mono text-accent">0x{packet.transactionId}</TableCell>
                         <TableCell>
                           <Button 
                             variant="ghost" 

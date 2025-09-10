@@ -55,11 +55,12 @@ const Index = () => {
           </div>
           
           <h1 className="text-5xl lg:text-7xl font-bold mb-6 data-glow">
-            <span className="text-primary">DNS</span> Pulse Viewer
+            <span className="text-primary">DNS</span> Packet Analyzer
           </h1>
           
           <p className="text-xl lg:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Capture and analyze DNS packets in real-time. 
+            DNS (Domain Name System) translates human-readable domain names into IP addresses. 
+            Our analyzer captures and analyzes DNS packets to provide insights into network traffic and domain resolution patterns.
             <br />
             <span className="text-secondary">Professional network monitoring made simple.</span>
           </p>
@@ -73,7 +74,7 @@ const Index = () => {
             
             <Link to="/stats">
               <Button variant="outline" size="lg" className="border-secondary text-secondary hover:bg-secondary/10 px-8 py-3 text-lg">
-                View Statistics
+                Learn More
               </Button>
             </Link>
           </div>
@@ -129,7 +130,7 @@ const Index = () => {
           </p>
           <Link to="/capture">
             <Button size="lg" className="bg-secondary hover:bg-secondary/90 text-secondary-foreground px-8 py-3">
-              Begin Packet Capture
+              Start Analysis
             </Button>
           </Link>
         </div>

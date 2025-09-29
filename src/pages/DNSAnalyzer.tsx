@@ -1,61 +1,90 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Network, Clock, Globe } from "lucide-react";
+import { Network, Clock, Activity, Wifi } from "lucide-react";
 import { toast } from "sonner";
 
 interface DNSResult {
+  id: number;
   domain: string;
-  ip: string;
-  family: string;
+  type: string;
   timestamp: string;
-  nodeId?: string;
+  packetNumber: number;
 }
 
 const DNSAnalyzer = () => {
-  const [domain, setDomain] = useState("");
-  const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<DNSResult[]>([]);
-  const [backendUrl, setBackendUrl] = useState("http://localhost:3001");
+  const [isConnected, setIsConnected] = useState(false);
+  const [backendUrl, setBackendUrl] = useState("ws://localhost:3001");
+  const wsRef = useRef<WebSocket | null>(null);
 
-  const handleQuery = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!domain.trim()) {
-      toast.error("Please enter a domain name");
-      return;
-    }
+  useEffect(() => {
+    connectWebSocket();
 
-    setLoading(true);
-
-    try {
-      const response = await fetch(`${backendUrl}/api/dns-query?domain=${encodeURIComponent(domain)}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
       }
-      
-      const data = await response.json();
-      
-      const newResult: DNSResult = {
-        domain,
-        ip: data.ip,
-        family: data.family,
-        timestamp: data.timestamp,
-        nodeId: data.nodeId || "local",
+    };
+  }, [backendUrl]);
+
+  const connectWebSocket = () => {
+    try {
+      const ws = new WebSocket(backendUrl);
+
+      ws.onopen = () => {
+        setIsConnected(true);
+        toast.success("Connected to DNS capture backend");
+        console.log("WebSocket connected");
       };
-      
-      setResults(prev => [newResult, ...prev]);
-      toast.success(`DNS query resolved: ${data.ip}`);
-      setDomain("");
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          const newResult: DNSResult = {
+            id: data.id,
+            domain: data.domain,
+            type: data.type,
+            timestamp: data.timestamp,
+            packetNumber: data.packetNumber,
+          };
+          
+          setResults((prev) => [newResult, ...prev.slice(0, 99)]); // Keep last 100 results
+        } catch (error) {
+          console.error("Error parsing WebSocket message:", error);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        toast.error("WebSocket connection error");
+      };
+
+      ws.onclose = () => {
+        setIsConnected(false);
+        toast.error("Disconnected from backend");
+        console.log("WebSocket closed");
+      };
+
+      wsRef.current = ws;
     } catch (error) {
-      console.error("DNS query error:", error);
-      toast.error("Failed to resolve DNS query. Make sure the backend is running.");
-    } finally {
-      setLoading(false);
+      console.error("Failed to connect WebSocket:", error);
+      toast.error("Failed to connect to backend");
     }
+  };
+
+  const handleReconnect = () => {
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+    connectWebSocket();
+  };
+
+  const clearResults = () => {
+    setResults([]);
+    toast.success("Results cleared");
   };
 
   return (
@@ -71,75 +100,53 @@ const DNSAnalyzer = () => {
           </p>
         </div>
 
-        {/* Backend Configuration */}
+        {/* Connection Status */}
         <Card className="border-primary/20 bg-card/50 backdrop-blur">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Network className="h-5 w-5 text-primary" />
-              Backend Configuration
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Wifi className="h-5 w-5 text-primary" />
+                Live DNS Capture
+              </span>
+              <Badge variant={isConnected ? "default" : "destructive"}>
+                {isConnected ? "Connected" : "Disconnected"}
+              </Badge>
             </CardTitle>
             <CardDescription>
-              Set your backend server URL (default: http://localhost:3001)
+              Capturing live DNS queries from your LAN network
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="flex gap-2">
               <Input
                 type="text"
                 value={backendUrl}
                 onChange={(e) => setBackendUrl(e.target.value)}
-                placeholder="http://192.168.1.100:3001"
+                placeholder="ws://192.168.1.100:3001"
                 className="flex-1"
               />
               <Button 
                 variant="outline" 
-                onClick={() => toast.success("Backend URL updated")}
+                onClick={handleReconnect}
               >
-                Update
+                Reconnect
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={clearResults}
+              >
+                Clear
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              For LAN access, use your machine's IP address (e.g., http://192.168.1.100:3001)
+            <p className="text-xs text-muted-foreground">
+              For LAN access, use your machine's IP address (e.g., ws://192.168.1.100:3001)
             </p>
-          </CardContent>
-        </Card>
-
-        {/* Query Form */}
-        <Card className="border-primary/20 bg-card/50 backdrop-blur">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5 text-primary" />
-              DNS Query
-            </CardTitle>
-            <CardDescription>
-              Enter a domain name to resolve its IP address
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleQuery} className="flex gap-2">
-              <Input
-                type="text"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                placeholder="example.com"
-                className="flex-1"
-                disabled={loading}
-              />
-              <Button 
-                type="submit" 
-                disabled={loading}
-                className="min-w-[120px]"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Resolving...
-                  </>
-                ) : (
-                  "Query DNS"
-                )}
-              </Button>
-            </form>
+            {isConnected && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Activity className="h-4 w-4 animate-pulse text-green-500" />
+                <span>Listening for DNS packets...</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -161,42 +168,41 @@ const DNSAnalyzer = () => {
             {results.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Network className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No DNS queries yet. Start by entering a domain above.</p>
+                <p>
+                  {isConnected 
+                    ? "Waiting for DNS traffic... Open websites or run DNS queries to see live results."
+                    : "Connect to the backend to start capturing DNS packets."}
+                </p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2 max-h-[600px] overflow-y-auto">
                 {results.map((result, index) => (
                   <div
-                    key={index}
-                    className="p-4 rounded-lg border border-border bg-background/50 hover:border-primary/30 transition-all"
+                    key={`${result.id}-${index}`}
+                    className="p-4 rounded-lg border border-border bg-background/50 hover:border-primary/30 transition-all animate-in fade-in slide-in-from-top-2"
                   >
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div>
+                        <p className="text-xs text-muted-foreground mb-1">Packet #</p>
+                        <Badge variant="outline" className="font-mono">
+                          {result.packetNumber}
+                        </Badge>
+                      </div>
+                      <div>
                         <p className="text-xs text-muted-foreground mb-1">Domain</p>
-                        <p className="font-mono text-sm font-semibold">{result.domain}</p>
+                        <p className="font-mono text-sm font-semibold break-all">{result.domain}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground mb-1">IP Address</p>
-                        <p className="font-mono text-sm text-primary">{result.ip}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1">Family</p>
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {result.family}
+                        <p className="text-xs text-muted-foreground mb-1">Query Type</p>
+                        <Badge variant="secondary" className="font-mono text-xs">
+                          {result.type}
                         </Badge>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Timestamp</p>
-                        <p className="text-xs font-mono">{result.timestamp}</p>
+                        <p className="text-xs font-mono">{new Date(result.timestamp).toLocaleTimeString()}</p>
                       </div>
                     </div>
-                    {result.nodeId && (
-                      <div className="mt-2 pt-2 border-t border-border/50">
-                        <Badge variant="secondary" className="text-xs">
-                          Node: {result.nodeId}
-                        </Badge>
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>

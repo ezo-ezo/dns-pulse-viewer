@@ -11,6 +11,7 @@ export const Navigation = () => {
     { path: '/', label: 'Home', icon: Network },
     { path: '/capture', label: 'Packet Capture', icon: Activity },
     { path: '/stats', label: 'Statistics', icon: BarChart3 },
+    { path: '/dns', label: 'Live DNS', icon: Network },
   ];
 
   return (

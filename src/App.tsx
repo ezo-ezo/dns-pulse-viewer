@@ -7,6 +7,7 @@ import { Navigation } from "./components/Navigation";
 import Index from "./pages/Index";
 import PacketCapture from "./pages/PacketCapture";
 import Statistics from "./pages/Statistics";
+import DNSAnalyzer from "./pages/DNSAnalyzer";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/capture" element={<PacketCapture />} />
               <Route path="/stats" element={<Statistics />} />
+              <Route path="/dns" element={<DNSAnalyzer />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

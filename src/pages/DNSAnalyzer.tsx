@@ -17,18 +17,17 @@ interface DNSResult {
 const DNSAnalyzer = () => {
   const [results, setResults] = useState<DNSResult[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [backendUrl, setBackendUrl] = useState("ws://localhost:3001");
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    connectWebSocket();
-
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
       }
     };
-  }, [backendUrl]);
+  }, []);
 
   const connectWebSocket = () => {
     try {
@@ -36,6 +35,7 @@ const DNSAnalyzer = () => {
 
       ws.onopen = () => {
         setIsConnected(true);
+        setIsAnalyzing(true);
         toast.success("Connected to DNS capture backend");
         console.log("WebSocket connected");
       };
@@ -64,6 +64,7 @@ const DNSAnalyzer = () => {
 
       ws.onclose = () => {
         setIsConnected(false);
+        setIsAnalyzing(false);
         toast.error("Disconnected from backend");
         console.log("WebSocket closed");
       };
@@ -75,11 +76,19 @@ const DNSAnalyzer = () => {
     }
   };
 
-  const handleReconnect = () => {
+  const handleStartAnalysis = () => {
     if (wsRef.current) {
       wsRef.current.close();
     }
     connectWebSocket();
+  };
+
+  const handleStopAnalysis = () => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      setIsAnalyzing(false);
+      toast.success("Analysis stopped");
+    }
   };
 
   const clearResults = () => {
@@ -124,13 +133,22 @@ const DNSAnalyzer = () => {
                 onChange={(e) => setBackendUrl(e.target.value)}
                 placeholder="ws://192.168.1.100:3001"
                 className="flex-1"
+                disabled={isAnalyzing}
               />
-              <Button 
-                variant="outline" 
-                onClick={handleReconnect}
-              >
-                Reconnect
-              </Button>
+              {!isAnalyzing ? (
+                <Button 
+                  onClick={handleStartAnalysis}
+                >
+                  Start Analysis
+                </Button>
+              ) : (
+                <Button 
+                  variant="destructive" 
+                  onClick={handleStopAnalysis}
+                >
+                  Stop Analysis
+                </Button>
+              )}
               <Button 
                 variant="outline" 
                 onClick={clearResults}
@@ -141,7 +159,7 @@ const DNSAnalyzer = () => {
             <p className="text-xs text-muted-foreground">
               For LAN access, use your machine's IP address (e.g., ws://192.168.1.100:3001)
             </p>
-            {isConnected && (
+            {isAnalyzing && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Activity className="h-4 w-4 animate-pulse text-green-500" />
                 <span>Listening for DNS packets...</span>
@@ -169,9 +187,9 @@ const DNSAnalyzer = () => {
               <div className="text-center py-12 text-muted-foreground">
                 <Network className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>
-                  {isConnected 
+                  {isAnalyzing 
                     ? "Waiting for DNS traffic... Open websites or run DNS queries to see live results."
-                    : "Connect to the backend to start capturing DNS packets."}
+                    : "Click 'Start Analysis' to begin capturing DNS packets."}
                 </p>
               </div>
             ) : (
